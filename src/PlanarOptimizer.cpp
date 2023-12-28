@@ -6,6 +6,7 @@
 #include <MapPoint.h>
 #include <Converter.h>
 #include <LoopCloser.h>
+#include <LabelInfo.h>s
 
 #include "g2o/core/block_solver.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
@@ -446,23 +447,23 @@ namespace EdgeSLAM {
 				//mapDatas2[pMP->mnId] = pMP->GetWorldPos();
 			}
 			else {
-				if (vpPlaneEdgdID[i] == floorID) {
-					pMP->mnPlaneID = (int)SemanticSLAM::StructureLabel::FLOOR;
-					mapDatas[pMP->mnId] = pMP->GetWorldPos();
-				}else if (vpPlaneEdgdID[i] == ceilID) {
-					pMP->mnPlaneID = (int)SemanticSLAM::StructureLabel::CEIL;
-					mapDatas2[pMP->mnId] = pMP->GetWorldPos();
-				}
-				else {
-					pMP->mnPlaneID = (int)SemanticSLAM::StructureLabel::WALL;
-					mapDatas3[pMP->mnId] = pMP->GetWorldPos();
+				////시각화
+				//if (vpPlaneEdgdID[i] == floorID) {
+				//	pMP->mnPlaneID = (int)StructureLabel::FLOOR;
+				//	mapDatas[pMP->mnId] = pMP->GetWorldPos();
+				//}else if (vpPlaneEdgdID[i] == ceilID) {
+				//	pMP->mnPlaneID = (int)StructureLabel::CEIL;
+				//	mapDatas2[pMP->mnId] = pMP->GetWorldPos();
+				//}
+				//else {
+				//	pMP->mnPlaneID = (int)StructureLabel::WALL;
+				//	mapDatas3[pMP->mnId] = pMP->GetWorldPos();
 
-					mapWallMPs[plane].push_back(pMP);
-					//해당 플레인에 대한 인접한 키프레임.
-					//맵포인트에 옵저베이션으로부터 시작하기.
-
-					//이게 어떤 평면에 해당하는지, 아이디가 무엇인지 알 수 있ㅇ므.
-				}
+				//	mapWallMPs[plane].push_back(pMP);
+				//	//해당 플레인에 대한 인접한 키프레임.
+				//	//맵포인트에 옵저베이션으로부터 시작하기.
+				//	//이게 어떤 평면에 해당하는지, 아이디가 무엇인지 알 수 있ㅇ므.
+				//}
 			}
 		}
 
@@ -533,8 +534,6 @@ namespace EdgeSLAM {
 			SemanticSLAM::PlaneEstimator::mPlaneConnections.Update(pKF, setPlanes);
 		}
 		
-
-
 		if (mapDatas.size() > 0) {
 			SLAM->TemporalDatas2.Update("GBAFloor", mapDatas);
 		}
