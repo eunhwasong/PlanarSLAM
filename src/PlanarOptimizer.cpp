@@ -6,15 +6,16 @@
 #include <MapPoint.h>
 #include <Converter.h>
 #include <LoopCloser.h>
-#include <LabelInfo.h>s
+#include <LabelInfo.h>
 
 #include "g2o/core/block_solver.h"
+#include <g2o/solvers/csparse/linear_solver_csparse.h>
 #include "g2o/core/optimization_algorithm_levenberg.h"
-#include "g2o/solvers/linear_solver_eigen.h"
-#include "g2o/types/types_six_dof_expmap.h"
+#include "g2o/solvers/eigen/linear_solver_eigen.h"
+#include "g2o/types/sba/types_six_dof_expmap.h"
 #include "g2o/core/robust_kernel_impl.h"
-#include "g2o/solvers/linear_solver_dense.h"
-#include "g2o/types/types_seven_dof_expmap.h"
+#include "g2o/solvers/dense/linear_solver_dense.h"
+#include "g2o/types/sim3/types_seven_dof_expmap.h"
 
 #include <PlaneNode.h>
 #include "PlaneEstimator.h"
@@ -38,14 +39,10 @@ namespace EdgeSLAM {
 		vbNotIncludedMP.resize(vpMP.size());
 
 		g2o::SparseOptimizer optimizer;
-		g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
-
-		linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>();
-
-		g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
-
-		g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-		optimizer.setAlgorithm(solver);
+		auto linear_solver = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
+		auto block_solver = std::make_unique<g2o::BlockSolver_6_3>(std::move(linear_solver));
+		auto algorithm = new g2o::OptimizationAlgorithmLevenberg(std::move(block_solver));
+		optimizer.setAlgorithm(algorithm);
 
 		if (pbStopFlag)
 			optimizer.setForceStopFlag(pbStopFlag);
@@ -86,14 +83,17 @@ namespace EdgeSLAM {
 			std::sort(vec.begin(), vec.end(), SemanticSLAM::PlaneEstimator::cmp);
 			cv::Mat Rsp = SemanticSLAM::PlaneEstimator::CalcPlaneRotationMatrix(SemanticSLAM::PlaneEstimator::GlobalFloor->param).clone();
 
+			float max_dist = -FLT_MAX;
 			for (int i = 0; i < vec.size(); i++) {
 				auto p = vec[i].second;
 				bool bwall = true;
 
 				auto tempWall = p;
+				if(tempWall->nData > 0)
+					std::cout << "wall data = " << tempWall->nData << std::endl;
 				while(bwall)
 				{
-					if (tempWall->nData < 800) {
+					if (tempWall->nData < 300) {
 						bwall = false;
 						break;
 					}
@@ -124,76 +124,21 @@ namespace EdgeSLAM {
 						lLocalPlanes.push_back(pa);
 						mapWallPlanes[tempIn] = pa;
 						tempWall = tempOut;
+
+						float dist = param.at<float>(3);
+						if (dist > max_dist) {
+							max_dist = dist;
+							SemanticSLAM::PlaneEstimator::MainWall = pa;
+						}
+						/*if (!SemanticSLAM::PlaneEstimator::MainWall) {
+							
+						}*/
 					}
 					else {
 						bwall = false;
 						break;
 					}
 				}
-
-				////if (p->nData > 1000) {
-				////	p->SetData();
-				////	p->ConvertWallData(Rsp);
-				////	SemanticSLAM::PlaneEstRes* tempIn = new SemanticSLAM::PlaneEstRes();
-				////	SemanticSLAM::PlaneEstRes* tempOut = new SemanticSLAM::PlaneEstRes();
-				////	bool bres = SemanticSLAM::PlaneEstimator::PlaneInitialization(p, tempIn, tempOut, 1500, 0.01, 0.2);
-				////	if (bres) {
-				////		
-				////		cv::Mat param = cv::Mat::zeros(4, 1, CV_32FC1);
-				////		param.at<float>(0) = tempIn->param.at<float>(0);
-				////		param.at<float>(2) = tempIn->param.at<float>(1);
-				////		param.at<float>(3) = tempIn->param.at<float>(2);
-
-				////		SemanticSLAM::Plane* pa = new SemanticSLAM::Plane();
-				////		pa->type = SemanticSLAM::PlaneType::WALL;
-				////		pa->param = param.clone();
-				////		pa->normal = pa->param.rowRange(0, 3);
-				////		pa->dist = cv::norm(pa->normal);
-				////		pa->nScore = tempIn->data.rows;
-				////		pa->count = 1;
-				////		tempIn->nPlaneID = pa->mnID;
-
-				////		//최적화시 정보 추가
-				////		lLocalWallEst.push_back(tempIn);
-				////		lLocalPlanes.push_back(pa);
-				////		mapWallPlanes[tempIn] = pa;
-
-				////		//추가 벽 찾기
-				////		{
-				////			if (tempOut->nData > 500) {
-				////				tempOut->SetData();
-				////				tempOut->ConvertWallData(Rsp);
-				////				SemanticSLAM::PlaneEstRes* tres1 = new SemanticSLAM::PlaneEstRes();
-				////				SemanticSLAM::PlaneEstRes* tres2 = new SemanticSLAM::PlaneEstRes();
-				////				bool bres = SemanticSLAM::PlaneEstimator::PlaneInitialization(tempOut, tres1, tres2, 1500, 0.01, 0.2);
-				////				if (bres) {
-				////					cv::Mat param = cv::Mat::zeros(4, 1, CV_32FC1);
-				////					param.at<float>(0) = tres1->param.at<float>(0);
-				////					param.at<float>(2) = tres1->param.at<float>(1);
-				////					param.at<float>(3) = tres1->param.at<float>(2);
-
-				////					SemanticSLAM::Plane* pa = new SemanticSLAM::Plane();
-				////					pa->type = SemanticSLAM::PlaneType::WALL;
-				////					pa->param = param.clone();
-				////					pa->normal = pa->param.rowRange(0, 3);
-				////					pa->dist = cv::norm(pa->normal);
-				////					pa->nScore = tres1->data.rows;
-				////					pa->count = 1;
-				////					tres1->nPlaneID = pa->mnID;
-
-				////					//최적화시 정보 추가
-				////					lLocalWallEst.push_back(tres1);
-				////					lLocalPlanes.push_back(pa);
-				////					mapWallPlanes[tres1] = pa;
-
-				////				}
-				////			}
-				////		}
-				////		//추가 벽 찾기
-				////	}
-				////	//delete tempIn;
-				////	//delete tempOut;
-				////}//if n
 			}//for
 		}
 		if (SemanticSLAM::PlaneEstimator::GlobalCeil->nScore > 0) {
@@ -223,7 +168,7 @@ namespace EdgeSLAM {
 			MapPoint* pMP = vpMP[i];
 			if (pMP->isBad())
 				continue;
-			g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+			g2o::VertexPointXYZ* vPoint = new g2o::VertexPointXYZ();
 			vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
 			const int id = pMP->mnId + maxKFid + maxPlaneid + 1;
 			vPoint->setId(id);
@@ -447,23 +392,23 @@ namespace EdgeSLAM {
 				//mapDatas2[pMP->mnId] = pMP->GetWorldPos();
 			}
 			else {
-				////시각화
-				//if (vpPlaneEdgdID[i] == floorID) {
-				//	pMP->mnPlaneID = (int)StructureLabel::FLOOR;
-				//	mapDatas[pMP->mnId] = pMP->GetWorldPos();
-				//}else if (vpPlaneEdgdID[i] == ceilID) {
-				//	pMP->mnPlaneID = (int)StructureLabel::CEIL;
-				//	mapDatas2[pMP->mnId] = pMP->GetWorldPos();
-				//}
-				//else {
-				//	pMP->mnPlaneID = (int)StructureLabel::WALL;
-				//	mapDatas3[pMP->mnId] = pMP->GetWorldPos();
+				//시각화
+				if (vpPlaneEdgdID[i] == floorID) {
+					pMP->mnPlaneID = (int)StructureLabel::FLOOR;
+					//mapDatas[pMP->mnId] = pMP->GetWorldPos();
+				}else if (vpPlaneEdgdID[i] == ceilID) {
+					pMP->mnPlaneID = (int)StructureLabel::CEIL;
+					//mapDatas2[pMP->mnId] = pMP->GetWorldPos();
+				}
+				else {
+					pMP->mnPlaneID = (int)StructureLabel::WALL;
+					//mapDatas3[pMP->mnId] = pMP->GetWorldPos();
 
-				//	mapWallMPs[plane].push_back(pMP);
-				//	//해당 플레인에 대한 인접한 키프레임.
-				//	//맵포인트에 옵저베이션으로부터 시작하기.
-				//	//이게 어떤 평면에 해당하는지, 아이디가 무엇인지 알 수 있ㅇ므.
-				//}
+					mapWallMPs[plane].push_back(pMP);
+					//해당 플레인에 대한 인접한 키프레임.
+					//맵포인트에 옵저베이션으로부터 시작하기.
+					//이게 어떤 평면에 해당하는지, 아이디가 무엇인지 알 수 있ㅇ므.
+				}
 			}
 		}
 
@@ -526,7 +471,7 @@ namespace EdgeSLAM {
 			}
 		}//for wall
 
-		std::cout << "Update Connected KF and Wall Planes" << std::endl;
+		std::cout << "Update Connected KF and Wall Planes = " << mapWallPlanes.size()<<" "<< mapWallMPs.size() << std::endl;
 		//키프레임으로부터 평면 연결해야 함.
 		for (auto iter = mapKeyFrameNPlanes.begin(), iend = mapKeyFrameNPlanes.end(); iter != iend; iter++) {
 			auto pKF = iter->first;
@@ -534,7 +479,7 @@ namespace EdgeSLAM {
 			SemanticSLAM::PlaneEstimator::mPlaneConnections.Update(pKF, setPlanes);
 		}
 		
-		if (mapDatas.size() > 0) {
+		/*if (mapDatas.size() > 0) {
 			SLAM->TemporalDatas2.Update("GBAFloor", mapDatas);
 		}
 		if (mapDatas2.size() > 0) {
@@ -543,7 +488,7 @@ namespace EdgeSLAM {
 		if (mapDatas3.size() > 0) {
 			SLAM->TemporalDatas2.Update("GBAWall", mapDatas3);
 		}
-		std::cout << "FloorMPs = " << vpPlaneEdgeMP.size() <<" "<<nFloorError<< std::endl;
+		std::cout << "FloorMPs = " << vpPlaneEdgeMP.size() <<" "<<nFloorError<< std::endl;*/
 
 		//Points
 		for (size_t i = 0; i<vpMP.size(); i++)
@@ -555,7 +500,7 @@ namespace EdgeSLAM {
 
 			if (pMP->isBad())
 				continue;
-			g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId + maxKFid + maxPlaneid + 1));
+			g2o::VertexPointXYZ* vPoint = static_cast<g2o::VertexPointXYZ*>(optimizer.vertex(pMP->mnId + maxKFid + maxPlaneid + 1));
 
 			if (nLoopKF == 0)
 			{

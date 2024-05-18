@@ -32,7 +32,7 @@ namespace g2o {
 
 	void PlaneBAEdge::computeError() {
 		const PlaneVertex* v1 = static_cast<const PlaneVertex*>(_vertices[0]);
-		const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[1]);
+		const VertexPointXYZ* v2 = static_cast<const VertexPointXYZ*>(_vertices[1]);
 
 		Vector6d param1 = v1->estimate();
 		Vector3d param2 = v2->estimate();
@@ -44,7 +44,7 @@ namespace g2o {
 	}
 	void PlaneBAEdge::linearizeOplus() {
 		const PlaneVertex* v1 = static_cast<const PlaneVertex*>(_vertices[0]);
-		const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[1]);
+		const VertexPointXYZ* v2 = static_cast<const VertexPointXYZ*>(_vertices[1]);
 
 		Vector6d param1 = v1->estimate(); //평면
 		Vector3d param2 = v2->estimate(); //맵포인트
